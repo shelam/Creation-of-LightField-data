@@ -4,3 +4,4 @@ This project provides MATLAB scripts to create light field data from camera capt
 * Creation light field data for each camera image
 * Apply it to the same algorithm to mutlple orientations
 * Reconstruct image from the complete light field data created
+* Live markdown
