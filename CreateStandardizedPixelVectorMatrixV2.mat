@@ -1,0 +1,79 @@
+function [Xpixelarray,Ypixelarray,XvectorComp,YvectorComp,ZvectorComp] = CreateStandardizedPixelVectorMatrixV2(sizeX,sizeY)
+
+cy=1232; %in Pixels
+cx=1018; %in Pixels
+
+fx=50;%mm
+fy=50; %mm
+pixsizex=0.00345; %mm
+pixsizey=0.00345; %mm
+
+
+%Read a Image
+CC=ones(sizeX,sizeY);
+
+%Helping matrixes, as large as CC
+ZeroHelp=zeros(size(CC,1),size(CC,2));
+OneHelp=ones(size(CC,1),size(CC,2));
+
+% %Shifting <----- IT THINK THESE LINES ARE WRONG (TAK), 03.05.2021
+%shiftx=size(CC,1)/2+cx;%shift by half image-size and correct by cx
+%shifty=size(CC,2)/2+cy;%shift by half image-size and correct by cy
+
+x=[1:1:size(CC,1)]-cx; %create vectors to later create pixel-location matrix
+y=[1:1:size(CC,2)]-cy; %create vectors to later later create pixel-location matrix
+[XX,YY]=meshgrid(x.*pixsizex,y.*pixsizey); %create pixel-location matrix relative to optical axis in mm
+XX=XX';%Dimension-corrections
+YY=YY';
+YY=flip(YY,2); %2021-05-26
+ZZ=ZeroHelp;
+
+PHIx=atan(YY./fx); %rotation in x based on displacement in y
+PHIy=-atan(XX./fy); %THIS MINUS SYMBOL IS IMPORTANT %rotation in y based on displacement in x)
+PHIz=atan(ZZ./fy); %actually no rotation in ZZ, but included for the sake of completness
+
+%Intention now:
+%- Create a vectormatrix in pixel coordinate frame pointing in z
+%- Create rotation matrix for x and y rotation
+%- Rotate this vector and store data in camera coordinate frame (cartesian)
+
+
+
+Zp=double(CC(:,:,1)); %Index p for pixel-coordinate frame
+
+Xp=ZeroHelp;
+Yp=ZeroHelp;
+
+%Just reserve some memory space that later on the algorithms run quicker
+Xpixelarray=ZeroHelp;
+Ypixelarray=ZeroHelp;
+XvectorComp=ZeroHelp;
+YvectorComp=ZeroHelp;
+ZvectorComp=ZeroHelp;
+
+counter=0;
+for i=1:size(Zp,1)
+    for j=1:size(Zp,2)
+        
+        counter=counter+1;
+        
+        alpha=PHIx(i,j);
+        beta=PHIy(i,j);
+        gamma=PHIz(i,j);
+        
+        InVec=[Xp(i,j);Yp(i,j);Zp(i,j)];
+        OutVec=RotateGamma(RotateBeta(RotateAlpha(InVec,alpha),beta),gamma);
+        
+        %Store output of rotation in corresponding matrix which is representing now vectors in
+        %camera-coordinate frame and (of course) move the vectors to the corresponding pixel location
+        
+        Xpixelarray(i,j)=XX(i,j);
+        Ypixelarray(i,j)=YY(i,j);
+        XvectorComp(i,j)=OutVec(1);
+        YvectorComp(i,j)=OutVec(2);
+        ZvectorComp(i,j)=OutVec(3);
+        
+        
+    end
+end
+end
