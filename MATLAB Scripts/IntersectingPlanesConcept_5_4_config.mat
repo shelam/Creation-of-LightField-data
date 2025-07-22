@@ -1,0 +1,103 @@
+ %FOR REPEATED EXECUTION WITH DIFFERENT CONFIGURATIONS, CHANGE THE
+    %RESPTIVE PARAMETERS AFTER THE FUNCTION CALL AND CALL THE FUNCTION
+    %AGAIN
+
+%************************************************************************
+% ***** USER INPUT *****************************************************
+%Iteration #1
+
+%*** FILEPATH LIGHTFIELD DATA
+%String. Both releative and absolute paths possible.
+filepath_data = 'C:\LightFields direction\LightFieldCreation_Data\Sravan_Final\HUD\HUDDotRadius_5_30Images.mat';
+
+%*** FILENAME OUTPUT DATA
+%String. Name of the .mat file generated. ".mat" at the end is necessary.
+filename_data = 'HUDDotRadius_5_30ImagesRes(0.5,0.5,0.5)1700.mat';
+
+%*** FILENAME OUTPUT FIGURE
+%String. Name of the Figure generated. ".fig" at the end is necessary
+filename_figure = 'HUDDotRadius_5_30ImagesRes(0.5,0.5,0.5)1700.fig';
+
+%*** SIZE OF IMAGE VOLUME
+%Vector. [x y z]. in mm.
+volume_size = [180 200 100];
+
+%*** ORIGIN OF IMAGE VOLUME
+%Vector. [x y z]. In world coordinates. in mm.
+volume_origin = [-330 150 1700];
+%*** SIZE OF A SINGLE VOXEL
+%Vector. [x y z]. in mm. Determines resolution together with volume size. 
+voxel_size = [0.5 0.5 0.5]; 
+
+
+%*** VOLUME VISUALIZATION ON/OFF
+%1=on, 0=off. If a graph visualizing some rays and the volume should be
+%drawn. Will not be saved.
+flag_visualization = 1;
+
+%*** RENDERING ON/OFF
+%1=on, 0=off. If the "visualize"-function should be called at the end.
+%Renders sliced images from 3D-Array. Can be done later using data from
+%.mat file.
+flag_render = 1;
+
+%*** RUNTIME OUTPUTS ON/OFF
+%1=on, 0=off. Toggles detailed runtime outputs at the end.
+flag_runtime = 1;
+
+%*** LEGACY DATA OUTPUT
+%1=on, 0=off. Old "visualize"-algorithm worked with 2D array. Very
+%inefficient. Overhauled visualize algorithm works directly with 3D array.
+%When on, a 2D array will be generated and saved in addition to the 3D
+%array for use with the old visualize algorithm.
+flag_VoxelArray = 0;
+
+%*** LINEWEIGHTING
+%1=on, 0=off. Enables or disables line weighting.
+flag_lineweighting = 1;
+
+%*** RAM LIMITATIONS
+%How many rays should be processed before clearing RAM. Depends on volume
+%size and resolution. Set lower, if program crashed due to lack of memory.
+%Values too low may impact performance. 
+%Good values may be between 100 000 and 10 000 000.
+rays_per_iteration = 100000;
+
+%*** PRE-ALLOCATION FACTOR
+%Determines, how much memory should be allocated for points list. Too high
+%or too low values may impact performance slightly. For usual
+%configurations, 2 is recommended.
+factor_preallocation = 2;
+
+disp(filename_data)
+%*** WARNING: PERFORMANCE IMPACT OF TRY/CATCH UNKNOWN, ONLY USE WHEN
+%NECESSARY
+try
+    IntersectingPlanesConcept_5_4_function(filepath_data, ...
+            filename_data, filename_figure, volume_size, volume_origin,...
+            voxel_size, flag_visualization, flag_render, flag_runtime,...
+            flag_VoxelArray, flag_lineweighting, rays_per_iteration,...
+            factor_preallocation)
+catch
+   warning_message = append('Error in ',filename_data);
+   warning(warning_message); 
+end
+%*****************************************************************
+% %Iteration 2
+% filepath_data = 'HUDMTF_20mm.mat';
+% filename_data = 'RESULTS_05_LWoff.mat';
+% filename_figure = 'RESULTS_05_LWoff.fig';
+% flag_lineweighting = 0;
+% 
+% disp(filename_data)
+% try
+%     IntersectingPlanesConcept_5_4_function(filepath_data, ...
+%             filename_data, filename_figure, volume_size, volume_origin,...
+%             voxel_size, flag_visualization, flag_render, flag_runtime,...
+%             flag_VoxelArray, flag_lineweighting, rays_per_iteration,...
+%             factor_preallocation)
+% catch
+%    warning_message = append('Error in ',filename_data);
+%    warning(warning_message); 
+% end
+%*****************************************************************

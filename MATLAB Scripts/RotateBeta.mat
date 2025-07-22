@@ -1,0 +1,21 @@
+function OutputVec=RotateBeta(InputVec,beta)
+%function OutputVec=RotateBeta(InputVec,beta)
+%Funktion to rotate around y-Axis by angle Beta
+
+RotY=[cos(beta) 0 sin(beta);...
+                0 1 0;...
+                -sin(beta) 0 cos(beta)];
+            
+ if size(InputVec)== [1, 3]
+    trigger=1;
+ else
+     trigger=0;
+ end
+
+
+if trigger==1
+    OutputVec=RotY*InputVec';
+    OutputVec=OutputVec';
+else
+    OutputVec=RotY*InputVec;
+end

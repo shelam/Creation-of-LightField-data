@@ -1,0 +1,326 @@
+
+function []=IntersectingPlanesConcept_5_4_function(filepath_data, ...
+            filename_data, filename_figure, volume_size, volume_origin,...
+            voxel_size, flag_visualization, flag_render, flag_runtime,...
+            flag_VoxelArray, flag_lineweighting, rays_per_iteration,...
+            factor_preallocation)
+
+    %% Prepare Workspace
+    TIME_overall = tic; %Runtime analysis
+
+    %% Import Captured Ray Data
+    disp('***Importing data. Start time: ')
+    disp(datestr(now,'HH:MM:SS'))
+    TIME_import = tic; %Runtime analysis
+
+    %***Import file
+    load(filepath_data) 
+    TIME_import = toc(TIME_import); %Runtime analysis
+
+    %% Initialize Data Structures
+    disp('***Initialising data. Start time: ')
+    disp(datestr(now,'HH:MM:SS'))
+    TIME_initialize = tic; %Runtime analysis
+
+    %***Determine maximum distance in a singe voxel
+    voxel_max_distance = norm(voxel_size);
+
+    %***Determine resolution in each dimension
+%     voxel_amount = volume_size ./ voxel_size; %[x y z]
+    voxel_amount = round(volume_size ./ voxel_size); %Sravan added 29.09.2022
+
+    %***Create empty 3D array to later store intensity values in
+    intensity_array = zeros(voxel_amount);
+
+    %***Compute an intensity value for every ray
+    TotalLightIntensity = vecnorm(TotalLightVectors')';
+
+    %***Split light vectors in different iterations because of RAM limitations
+    number_of_iterations = ceil(size(TotalLightVectors,1)/rays_per_iteration);
+
+    %***Create a cell array to be able to store values from parfor loop
+    intensity_cell = cell(rays_per_iteration,1);
+
+    %***Create planes representing voxel borders.
+    %Rows = Number of planes, Colums = xyz-coordinate
+    plane_base_vectors = [volume_origin(1):voxel_size(1):volume_origin(1)+volume_size(1),... %x-coordinates for yz-planes
+                     zeros(1,voxel_amount(2)+1)+volume_origin(1),... %x-coordinates for xz-planes
+                     zeros(1,voxel_amount(3)+1)+volume_origin(1);... %x-coordinates for xy-planes
+                     zeros(1,voxel_amount(1)+1)+volume_origin(2),... %y-coordinates for yz-planes
+                    volume_origin(2):voxel_size(2):volume_origin(2)+volume_size(2),... %y-coordinates for xz-planes
+                    zeros(1,voxel_amount(3)+1)+volume_origin(2);... %y-coordinates for xy-planes
+                     zeros(1,voxel_amount(1)+1)+volume_origin(3),... %z-coordinates for yz-planes
+                    zeros(1,voxel_amount(2)+1)+volume_origin(3),... %z-coordinates for xz-planes
+                     volume_origin(3):voxel_size(3):volume_origin(3)+volume_size(3)].'; %z-coordinates for xy-planes
+    plane_normal_vectors = [zeros(1,voxel_amount(1)+1)+1, zeros(1,voxel_amount(2)+1), zeros(1,voxel_amount(3)+1);... %normal vectors for yz planes
+                           zeros(1,voxel_amount(1)+1), zeros(1,voxel_amount(2)+1)+1, zeros(1,voxel_amount(3)+1);... %normal vectors for xz planes
+                           zeros(1,voxel_amount(1)+1), zeros(1,voxel_amount(2)+1), zeros(1,voxel_amount(3)+1)+1].'; %normal vectors for xy planes
+    TIME_initialize = toc(TIME_initialize); %Runtime analysis
+
+    %% Draw Pre-Render Visualization
+    TIME_visualization = tic; %Runtime analysis
+
+    if flag_visualization == 1
+        disp('***Drawing volume and rays. Start time: ')
+        disp(datestr(now,'HH:MM:SS'))
+
+        %***Initialize figure
+        rays_and_volume = figure('Name','Volume and Lightrays');
+        xlabel('x')
+        ylabel('y')
+        zlabel('z')
+        grid on
+        rotate3d on
+        axis equal;
+
+        %***Plot the volume
+        volume_vertices = [volume_origin;... %vertice 1
+                           volume_origin + [volume_size(1) 0 0];... %vertice 2
+                           volume_origin + [volume_size(1) volume_size(2) 0];... %vertice 3
+                           volume_origin + [0 volume_size(2) 0];... %vertice 4
+                           volume_origin + [0 0 volume_size(3)];... %vertice 5
+                           volume_origin + [volume_size(1) 0 volume_size(3)];... %vertice 6
+                           volume_origin + [volume_size(1) volume_size(2) volume_size(3)];... %vertice 7
+                           volume_origin + [0 volume_size(2) volume_size(3)]]; %vertice 8
+        volume_faces = [1 2 3 4; 5 6 7 8; 1 2 6 5; 3 4 8 7; 2 3 7 6; 1 4 8 5];
+        patch('Faces',volume_faces,'Vertices',volume_vertices,'FaceColor','red','FaceAlpha', 0.25)
+        hold on
+
+        %***Drawing Rays
+        figure_scale = 50;
+        figure_step_width = 50000;
+        for i=1:figure_step_width:size(TotalBaseVectors,1)
+            line([TotalBaseVectors(i,1),TotalBaseVectors(i,1)+TotalLightVectors(i,1)*figure_scale]...
+                ,[TotalBaseVectors(i,2),TotalBaseVectors(i,2)+TotalLightVectors(i,2)*figure_scale]...
+                ,[TotalBaseVectors(i,3),TotalBaseVectors(i,3)+TotalLightVectors(i,3)*figure_scale]);
+            hold on
+        end
+        hold off
+    end
+    TIME_visualization = toc(TIME_visualization); %Runtime analysis
+
+    %% Line weighting
+    disp('***Weighting light intensity. Start time: ')
+    disp(datestr(now,'HH:MM:SS'))
+    TIME_calculations = tic; %Runtime analysis
+    TIME_parfor = 0; %Runtime analysis
+    TIME_convert = 0; %Runtime analysis
+
+
+    for r=1:number_of_iterations
+        ray_index_end = min(rays_per_iteration,size(TotalLightVectors,1));
+        disp('***Start of iteration. Start time: ')
+        disp(datestr(now,'HH:MM:SS'))
+        disp('Number of iterations left:')
+        disp(number_of_iterations - (r-1))
+
+        TIME_parfor_tmp = tic; %Runtime analysis
+        parfor i=1:ray_index_end %for all light rays of this iteration
+            
+            %***Error-Catching
+            try
+            
+                %***Calculate intersection points of ray with all planes
+
+                intersection_points_unsortet=zeros(voxel_amount(3)*factor_preallocation,4);
+                k = 1;
+                for j=1:size(plane_base_vectors,1) %for all planes
+
+
+                    %Calculate intersection point
+                    possible_intersection_point = TotalBaseVectors(i,:) + (dot(plane_normal_vectors(j,:),TotalBaseVectors(i,:)-plane_base_vectors(j,:))...
+                                 / (-dot(plane_normal_vectors(j,:),TotalLightVectors(i,:)))) .* TotalLightVectors(i,:);
+                    %Check, if there is an intersection point. 
+                    %Check, if intersection point is within volume borders
+                    if ~any(isnan(possible_intersection_point(:))) && ...
+                    ~any(possible_intersection_point < volume_origin) && ...
+                    ~any( possible_intersection_point > volume_origin+volume_size) 
+                       %Save valid intersection point
+                       intersection_points_unsortet(k,1:3) = possible_intersection_point;
+                       %Calculate distance to ray origin for sorting purposes
+                       intersection_points_unsortet(k,4) = norm(possible_intersection_point - TotalBaseVectors(i,:)); 
+                       k = k+1;  
+                    end  
+                end
+
+                if k > 2 %If there are intersection points
+
+                    %***Sort the list of intersection points
+                    intersection_points = sortrows(intersection_points_unsortet(1:k-1,:),4);
+
+                    %***Create temporary list for intensity values
+                    intensity_list = zeros(size(intersection_points,1)-1,4);
+
+                    for p=1:size(intersection_points,1)-1 %for all voxels hit by ray
+
+                        %***Calculate distance in voxel
+                        distance_in_voxel = intersection_points(p+1,4) - intersection_points(p,4);
+
+                        %***Identify current voxel
+                        voxel_adress = abs((intersection_points(p,1:3)-volume_origin) ./ voxel_size);
+                        %If the adress value has no decimal places, it's location is
+                        %right on the border between two voxels
+                        for q=1:3 %for all dimensions
+                             if voxel_adress(q) == ceil(voxel_adress(q)) %if adress component is unclear
+                                 %Determine adress by using direction from light vector
+                                 if TotalLightVectors(i,q) > 0 %if positive direction
+                                     %adjust adress
+                                     voxel_adress(q) = voxel_adress(q) + 1;  
+                                 elseif TotalLightVectors(i,q) == 0 %if no direction 
+                                     %The ray goes exactly in between two planes of
+                                     %voxels. 
+                                     voxel_adress(q) = ceil(voxel_adress(q)); %temporary?
+                                     %disp('parallel ray detected')
+                                 end
+                             else %adress component is clear
+                                 voxel_adress(q) = ceil(voxel_adress(q));
+                             end
+                        end
+
+                        %***Save weighted intensity values in temporary list
+                        intensity_list(p,1:3) = voxel_adress;
+                        if flag_lineweighting == 1
+                            intensity_list(p,4) = TotalLightIntensity(i) * (distance_in_voxel / voxel_max_distance);
+                        else
+                            intensity_list(p,4) = TotalLightIntensity(i);
+                        end
+                    end
+                    
+                %***Save temporary intensity list to cell array
+                intensity_cell{i} = intensity_list;        
+                else
+                intensity_cell{i} = 0;
+                end
+
+                
+            
+            catch
+                message = append('A problem occured in parfor instance. Neglecting Ray. r=',num2str(r),', i=',num2str(i));
+                warning(message);
+            end
+        end
+
+        TIME_parfor = TIME_parfor + toc(TIME_parfor_tmp); %Runtime analysis
+
+        %% Convert Cell Array to desired output format
+        TIME_convert_tmp = tic; %Runtime analysis
+
+        %***Remove redundancy, add up intensity
+        for i=1:length(intensity_cell)
+            if intensity_cell{i} ~= 0
+                for j=1:size(intensity_cell{i},1)
+                 
+                %***Write intensity to correct voxel in 3d-matrix
+                
+                    intensity_array(intensity_cell{i}(j,1),intensity_cell{i}(j,2),intensity_cell{i}(j,3)) =...
+                    intensity_array(intensity_cell{i}(j,1),intensity_cell{i}(j,2),intensity_cell{i}(j,3)) +...
+                    intensity_cell{i}(j,4);   
+                end
+            end 
+        end
+
+        %***Clear RAM for next iteration
+        clear intensity_cell
+
+        %***Delete used rays
+        TotalLightVectors(1:ray_index_end,:) = [];
+        TotalBaseVectors(1:ray_index_end,:) = [];
+        TotalLightIntensity(1:ray_index_end) = [];
+
+        TIME_convert = TIME_convert + toc(TIME_convert_tmp); %Runtime analysis
+    end
+    TIME_calculations = toc(TIME_calculations); %Runtime analysis
+
+    %% Generate Legacy Data Structures
+    TIME_legacy = tic; %Runtime analysis
+
+    if flag_VoxelArray == 1
+        disp('Generating legacy data structure. Start time: ')
+        disp(datestr(now,'HH:MM:SS'))
+
+        %***Create table for data output
+        VoxelArray = zeros(numel(intensity_array),4);
+
+        %***Convert voxel-adresses to global coordinates
+        disp('Convert voxel adresses to world coordinates. Start time: ')
+        disp(datestr(now,'HH:MM:SS'))
+        n = 1;
+        for z=1:size(intensity_array,3)
+            for x=1:size(intensity_array,1)
+                for y=1:size(intensity_array,2)
+                    VoxelArray(n,1:3) = [x-1 y-1 z-1] .* voxel_size + volume_origin;
+                    VoxelArray(n,4) = intensity_array(x,y,z);
+                    n = n + 1;
+                end
+            end
+        end
+    end
+    TIME_legacy = toc(TIME_legacy); %Runtime analysis
+
+    %% Saving Results to File
+    disp('Saving results. Start time: ')
+    disp(datestr(now,'HH:MM:SS'))
+    TIME_saving = tic; %Runtime analysis
+
+    %***Differentiate between normal and legacy output
+    if flag_VoxelArray == 1
+        save(filename_data,'voxel_size','volume_size','volume_origin','intensity_array','VoxelArray')
+    else
+        save(filename_data,'voxel_size','volume_size','volume_origin','intensity_array')
+    end
+    TIME_saving = toc(TIME_saving); %Runtime analysis
+
+    %% Drawing Images
+    TIME_rendering = tic; %Runtime analysis
+
+    if flag_render == 1
+        disp('Slicing volume and rendering images. Start time: ')
+        disp(datestr(now,'HH:MM:SS'))
+
+        %***Call visualize function
+        function_Visualize_adapted_2(intensity_array, voxel_size, volume_size, volume_origin,filename_figure)  
+    end
+    TIME_rendering = toc(TIME_rendering); %Runtime analysis
+
+    %% Display Runtime
+    TIME_overall = toc(TIME_overall); %Runtime analysis
+
+    disp('Runtime overall:')
+    disp(TIME_overall)
+
+    %if runtime printouts are enabled
+    if flag_runtime == 1 
+       disp('Importing Data:')
+       disp(TIME_import)
+
+       disp('Initializing:')
+       disp(TIME_initialize)
+
+       if flag_visualization == 1
+           disp('Visualization:')
+           disp(TIME_visualization)
+       end
+
+       disp('LF Reconstruction')
+       disp(TIME_calculations)
+
+       disp('___parfor:')
+       disp(TIME_parfor)
+
+       disp('___Remove redundancies:')
+       disp(TIME_convert)
+
+       if flag_VoxelArray == 1
+          disp('Generating legacy data structure:') 
+          disp(TIME_legacy)
+       end
+
+       disp('Saving results to file:')
+       disp(TIME_saving)
+
+       if flag_render == 1
+           disp('Rendering images:')
+           disp(TIME_rendering)
+       end
+    end
+end

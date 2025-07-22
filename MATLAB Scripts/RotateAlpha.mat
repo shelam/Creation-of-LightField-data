@@ -1,0 +1,21 @@
+function OutputVec=RotateAlpha(InputVec,alpha)
+%function OutputVec=RotateAlpha(InputVec,alpha)
+%Funktion to rotate around x-Axis by angle Alpha
+
+RotX=[1 0 0;...
+     0 cos(alpha) -sin(alpha);...
+     0 sin(alpha) cos(alpha)];
+ 
+ if size(InputVec)== [1, 3]
+    trigger=1;
+ else
+     trigger=0;
+ end
+
+
+if trigger==1
+    OutputVec=RotX*InputVec';
+    OutputVec=OutputVec';
+else
+    OutputVec=RotX*InputVec;
+end

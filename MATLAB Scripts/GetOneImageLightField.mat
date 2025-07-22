@@ -1,0 +1,44 @@
+function [BaseVectorList,LightVectorList,SharpnessCorrectionList]=GetOneImageLightField(ImageFile,LayerChoice,GreyThreshold,x,y,z,alpha,beta,gamma,Xpixelarray,Ypixelarray,XvectorComp,YvectorComp,ZvectorComp)
+
+%This function is to get one image light field into the system
+
+%function [BaseVectorList,LightVectorList]=GetOneImageLightField(ImageFile,LayerChoice,x,y,z,alpha,beta,gamma,Xpixelarray,Ypixelarray,XvectorComp,YvectorComp,ZvectorComp);
+
+%LuminanceCalibFactor=100000/ ==> PNG Information is already cd/m2
+
+h=fspecial('unsharp');
+
+ImageRawData=imread(ImageFile);
+ImageRawData = medfilt2(ImageRawData, [3, 3]);
+ImageRawData=fliplr(ImageRawData); % Imageflip LeftRight
+ImageRawData=flipud(ImageRawData); % Imageflip TopDown
+
+ImageLayer=double(ImageRawData(:,:,LayerChoice));
+SharpImageLayer=imfilter(ImageLayer,h);
+SharpnessCorrection=SharpImageLayer./ImageLayer;
+
+
+counter=0;
+for i=1:size(ImageLayer,1)
+    for j=1:size(ImageLayer,2)
+        
+        Luminance=ImageLayer(i,j); %CAREFUL, DEPENDENCY ON EXPOSURE TIME!!!! TO BE INTEGRATED LATER!!!!
+        
+        if Luminance>GreyThreshold
+            counter=counter+1;
+            LightVectorCC=[XvectorComp(i,j);YvectorComp(i,j);ZvectorComp(i,j)].*Luminance;
+            BaseVectorCC=[Xpixelarray(i,j);Ypixelarray(i,j);0];
+            ResultantVectorCC=LightVectorCC+BaseVectorCC;
+            
+            %Doing transformations now
+            BaseVectorWC=ShiftXYZ(RotateGamma(RotateBeta(RotateAlpha(BaseVectorCC,alpha),beta),gamma),[x;y;z]);
+            ResultantVectorWC=ShiftXYZ(RotateGamma(RotateBeta(RotateAlpha(ResultantVectorCC,alpha),beta),gamma),[x;y;z]);
+            LightVectorWC=ResultantVectorWC-BaseVectorWC;
+            
+            BaseVectorList(counter,:)=BaseVectorWC;
+            LightVectorList(counter,:)=LightVectorWC;
+            SharpnessCorrectionList(counter,:)=SharpnessCorrection(i,j);
+        end
+        
+    end
+end

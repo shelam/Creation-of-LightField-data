@@ -1,0 +1,6 @@
+function OutputVec=ShiftXYZ(InputVec,ShiftXYZ)
+%function OutputVec=ShiftXYZ(InputVec,ShiftXYZ)
+%Funktion to shift a vector by x-y-z-components
+
+OutputVec=InputVec+ShiftXYZ;
+end

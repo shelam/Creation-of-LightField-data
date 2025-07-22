@@ -1,0 +1,21 @@
+function OutputVec=RotateGamma(InputVec,gamma)
+%function OutputVec=RotateGamma(InputVec,gamma)
+%Funktion to rotate around z-Axis by angle Gamma
+
+RotZ=[cos(gamma) -sin(gamma) 0;...
+    sin(gamma) cos(gamma) 0;...
+    0 0 1];
+            
+ if size(InputVec)== [1, 3]
+    trigger=1;
+ else
+     trigger=0;
+ end
+
+
+if trigger==1
+    OutputVec=RotZ*InputVec';
+    OutputVec=OutputVec';
+else
+    OutputVec=RotZ*InputVec;
+end
