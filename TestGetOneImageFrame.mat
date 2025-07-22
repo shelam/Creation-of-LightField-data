@@ -1,0 +1,68 @@
+clear
+clc
+close all
+
+disp ('Now creating the Standardized Matrix')
+[Xpixelarray,Ypixelarray,XvectorComp,YvectorComp,ZvectorComp]=CreateStandardizedPixelVectorMatrixV2(2035,2464);
+disp('Done')
+
+
+TotalBaseVectors=[];
+TotalLightVectors=[];
+TotalContrastCorrection=[];
+
+[U,V,W,Alpha,Beta,Gamma]=Mechanical2Optical_CoordinatesTransfer();
+
+
+root_dir='C:\LightFields direction\Images_Captured\FinalImages_Sravan\HUDCB_40Pixel_30Images';
+d=dir(fullfile(root_dir,'*.png'));
+% d = natsortfiles(d); % To sort in the name order
+nImages=numel(d);
+im=zeros(2035,2464,nImages);
+
+tic
+parfor i=1:nImages %parfor
+    
+    x=U(i); %mm
+    y=V(i); %mm
+    z=W(i); %mm
+    alpha=deg2rad(Alpha(i)); %rad
+    beta=deg2rad(Beta(i)); %rad
+    gamma=deg2rad(Gamma(i)); %rad
+    GreyThreshold=20;
+    Which=strcat(d(i).folder,'\',d(i).name);
+    
+    disp(strcat('Now reading one Image:',d(i).name))
+    [BaseVectors,LightVectors,ContrastCorrection]=GetOneImageLightField(Which,1,GreyThreshold,x,y,z,alpha,beta,gamma,Xpixelarray,Ypixelarray,XvectorComp,YvectorComp,ZvectorComp);
+    disp('Done')
+    TotalBaseVectors=[TotalBaseVectors;BaseVectors];
+    TotalLightVectors=[TotalLightVectors;LightVectors];
+    TotalContrastCorrection=[TotalContrastCorrection;ContrastCorrection]
+end
+
+
+disp('Now drawing an image ...')
+close all
+h=figure;
+
+Scale=50;
+StepWidth=50000;
+for i=1:StepWidth:size(TotalBaseVectors,1)
+    line([TotalBaseVectors(i,1),TotalBaseVectors(i,1)+TotalLightVectors(i,1)*Scale]...
+        ,[TotalBaseVectors(i,2),TotalBaseVectors(i,2)+TotalLightVectors(i,2)*Scale]...
+        ,[TotalBaseVectors(i,3),TotalBaseVectors(i,3)+TotalLightVectors(i,3)*Scale]);
+    hold on
+end
+
+%VisualizeVectors(BaseVectors,LightVectors,100)
+grid on
+xlabel('x')
+ylabel('y')
+zlabel('z')
+
+save HUDCB_40Pixel_30Images.mat TotalBaseVectors TotalLightVectors TotalContrastCorrection 
+savefig(h,'HUDCB_40Pixel_30Images.fig')
+
+disp('Done')
+timerest=toc;
+duration(0,0,timerest,'Format','hh:mm:ss')
